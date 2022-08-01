@@ -538,6 +538,10 @@ class VComp:
         # check that we did not forget to pop all the way
         assert (c==0)
 
+        if sampler.check() != sat:
+            print("Should this happen??")
+            raise NotImplementedError()
+
         m = sampler.model()
         if self.verb:
             print("model from sampler", m)
