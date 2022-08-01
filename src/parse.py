@@ -307,6 +307,8 @@ class Encoder(ast.NodeVisitor):
 
     def exprToZ3(self, e, d=None):
         #print "we are here ", ast.dump(e)
+        print('--------------------------------------------------')
+        print("Expression", ast.dump(e))
         if isBinOp(e):
             op = e.op
             zlhs = self.exprToZ3(e.left, d)
@@ -477,7 +479,7 @@ def initDict(node):
 if __name__=="__main__":
 
 
-    from runTests import projectNonProbVars
+    from fairProve import projectNonProbVars
     node = ast.parse('''
 def popModel():
     m = gaussian(0,100)
