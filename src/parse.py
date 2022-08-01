@@ -126,6 +126,10 @@ def isNum(node):
     return name(node) == 'Num'
 
 
+def isConstant(node):
+    return name(node) == 'Constant'
+
+
 def isName(node):
     return name(node) == 'Name'
 
@@ -333,7 +337,7 @@ class Encoder(ast.NodeVisitor):
             zrhs = self.exprToZ3(e.comparators[0], d)
             return makeCompare(op, zlhs, zrhs)
 
-        elif isNum(e):
+        elif isNum(e) or isConstant(e):
             num = evalAST(e)
             return num
 
