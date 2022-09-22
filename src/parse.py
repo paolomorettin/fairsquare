@@ -1,9 +1,73 @@
 import ast
 import codegen
+import pysmt.shortcuts as smt
 from z3 import *
 from z3extra import *
 import rotationmath as rm
 # helpers
+
+def z3_to_pysmt(node):
+
+    if is_const(node):
+        # Const or Symbol
+        if is_rational_value(node):
+            n = node.numerator_as_long()
+            d = node.denominator_as_long()
+            f = Fraction(n, d)
+            return smt.Real(f)
+        elif is_int_value(node):
+            n = node.as_long()
+            return smt.Int(n)
+        elif is_bv_value(node):
+            n = node.as_long()
+            w = node.size()
+            return smt.BV(n, w)
+        elif is_algebraic_value(node):
+            # Algebraic value
+            print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX')
+            print(node)
+            return smt.Real(node.as_long())
+        else:
+            # must be a Symbol
+            stype = smt.BOOL if is_bool(node) else smt.REAL
+            return smt.Symbol(str(node), stype)
+
+    elif is_add(node):
+        return smt.Plus(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_mul(node):
+        return smt.Times(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_app_of(node, Z3_OP_POWER):
+        return smt.Pow(*[z3_to_pysmt(c) for c in node.children()])
+
+
+    elif is_and(node):
+        return smt.And(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_or(node):
+        return smt.Or(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_not(node):
+        return smt.Not(z3_to_pysmt(node.children()[0]))
+
+    elif is_gt(node):
+        return smt.GT(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_ge(node):
+        return smt.GE(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_le(node):
+        return smt.LE(*[z3_to_pysmt(c) for c in node.children()])
+
+    elif is_lt(node):
+        return smt.LT(*[z3_to_pysmt(c) for c in node.children()])
+    elif is_eq(node):
+        return smt.Equals(*[z3_to_pysmt(c) for c in node.children()])
+    else:
+        print("Not implemented:", node)
+    
+
 
 
 def name(node):
@@ -311,8 +375,6 @@ class Encoder(ast.NodeVisitor):
 
     def exprToZ3(self, e, d=None):
         #print "we are here ", ast.dump(e)
-        print('--------------------------------------------------')
-        print("Expression", ast.dump(e))
         if isBinOp(e):
             op = e.op
             zlhs = self.exprToZ3(e.left, d)
