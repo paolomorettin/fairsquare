@@ -1,7 +1,4 @@
 from abc import ABC, abstractmethod
-import numpy as np
-import numpy.polynomial.polynomial as poly
-import pysmt.shortcuts as smt
 from scipy.stats import norm
 from z3 import *
 from z3extra import *
@@ -22,49 +19,6 @@ class GaussVar(ProbVar):
         super().__init__()
         self.mean = mean
         self.variance = variance
-
-    ########## PYWMI conversion ##########
-    def makeApproxDistWMI(self, numHists, histsBound, varname, degree=2, npoints=100):
-        l = self.mean - histsBound * (self.variance**0.5)
-        u = self.mean + histsBound * (self.variance**0.5)
-        width = (u - l) / numHists
-
-        pwpoly = []
-        for i in range(numHists):
-            x = np.linspace(l, l+width, npoints)
-            y = norm.pdf(x, self.mean, self.variance**0.5)
-            p = poly.Polynomial.fit(x, y, degree)
-
-            xvar = smt.Symbol(varname, smt.REAL)
-            cond = smt.And(smt.LE(smt.Real(float(x[0])), xvar), smt.LE(xvar, smt.Real(float(x[-1]))))
-
-            monos = []
-            for i, c in enumerate(p.coef):
-
-                if i == 0:
-                    m = smt.Real(float(c))
-                elif i == 1:
-                    m = smt.Times(*[smt.Real(float(c)), xvar])
-                else:
-                    m = smt.Times(*[smt.Real(float(c)), smt.Pow(xvar, smt.Real(i))])
-            
-                monos.append(m)
-
-            pwpoly.append((cond, smt.Plus(*monos)))
-
-        nested = smt.Ite(pwpoly[-1][0], pwpoly[-1][1], smt.Real(0))
-        for i in range(numHists-2, -1, -1):
-            nested = smt.Ite(pwpoly[i][0], pwpoly[i][1], nested)
-
-        return nested
-
-    def domain(self, histBound):
-        u = self.mean + ((self.variance**0.5) * histBound)
-        l = self.mean - ((self.variance**0.5) * histBound)
-        return l, u
-
-    ######################################
-
 
     def makeApproxDist(self, numHists, histBound):
         # NOTE: numHists is a parameter, number of histograms
@@ -170,28 +124,6 @@ class StepVar(ProbVar):
         super().__init__()
         self.bars = bars
 
-    ########## PYWMI conversion ##########
-    def makeApproxDistWMI(self, numHists, histBound, varname):
-        pwc = self.bars
-        xvar = smt.Symbol(varname, smt.REAL)
-        nested = smt.Ite(smt.And(smt.LE(smt.Real(pwc[-1][0]), xvar),
-                                 smt.LE(xvar, smt.Real(pwc[-1][1]))),
-                         smt.Real(pwc[-1][2]),
-                         smt.Real(0))
-        
-        for i in range(numHists-2, -1, -1):
-            nested = smt.Ite(smt.And(smt.LE(smt.Real(pwc[i][0]), xvar),
-                                     smt.LE(xvar, smt.Real(pwc[i][1]))),
-                             smt.Real(pwc[i][2]),
-                             nested)
-
-        return nested
-
-    def domain(self, histBound):
-        return self.stepWiseLowerBound(), self.stepWiseUpperBound()
-
-    ######################################
-    
     def makeApproxDist(self, numHists, histBound):
         #ignores the numHists and histBound parameters
         self.adist = self.bars
@@ -241,5 +173,4 @@ class StepVar(ProbVar):
         res = min([b[0] for b in self.bars])
 
         return res
-
 

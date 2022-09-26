@@ -1,4 +1,4 @@
-from parse import Encoder, z3_to_pysmt
+from parse import Encoder
 import argparse
 import ast
 from vol import VComp
@@ -9,9 +9,6 @@ from redlogInterface import *
 from simulate import *
 import time
 from probcomp import ProbComp
-from probvar import GaussVar, StepVar
-import pysmt.shortcuts as smt
-from pywmi import Density, Domain
 from logwriter import LogWriter
 from plotter import Plotter
 from functools import reduce
@@ -115,12 +112,6 @@ def proveFairness(p, output, epsilon, finmax, randomize, infmax, plot, z3qe, num
         notMH = And(p.model, p.program, Not(p.sensitiveAttribute), p.fairnessTarget)
         phis = [M, MH, notMH]
         phinames = ["m", "mh", "nmh"]
-
-        ########## PYWMI conversion ##########
-        wmiqueries = [z3_to_pysmt(p.sensitiveAttribute),
-                      z3_to_pysmt(And(p.program, p.sensitiveAttribute, p.fairnessTarget)),
-                      z3_to_pysmt(And(p.program, Not(p.sensitiveAttribute), p.fairnessTarget))]
-        ######################################
     else:
         MQ = And(p.model, p.sensitiveAttribute, p.qualified)
         notMQ = And(p.model, Not(p.sensitiveAttribute), p.qualified)
@@ -128,12 +119,6 @@ def proveFairness(p, output, epsilon, finmax, randomize, infmax, plot, z3qe, num
         notMQH = And(p.model, p.program, Not(p.sensitiveAttribute), p.fairnessTarget, p.qualified)
         phis = [MQ, notMQ, MQH, notMQH]
         phinames = ["mq", "nmq", "mqh", "nmqh"]
-
-        ########## PYWMI conversion ##########
-        wmiqueries = [z3_to_pysmt(p.sensitiveAttribute, p.qualified),
-                      z3_to_pysmt(Not(p.sensitiveAttribute), p.qualified),
-                      z3_to_pysmt(And(p.program, p.sensitiveAttribute, p.fairnessTarget, p.qualified)),
-                      z3_to_pysmt(And(p.program, Not(p.sensitiveAttribute), p.fairnessTarget, p.qualified))]
     
     # all probabilistic vars
     pvars = [x for x in p.vdist]
@@ -141,45 +126,10 @@ def proveFairness(p, output, epsilon, finmax, randomize, infmax, plot, z3qe, num
     # existentially eliminate all non-probabilistic (e.g., SSA) variables
     print("running quantifier elimination (this may take some time) ...\n") # univ qe happens later though
     phis = [projectNonProbVars(phi, pvars, z3qe) for phi in phis]
+
     vcargs = [p.vdist, finmax, randomize, infmax, z3qe, adapt, rotate, numHists, histBound, verbose]
+
     probs = [ProbComp(name, phi, *vcargs) for name, phi in zip(phinames,phis)]
-
-    ########## PYWMI conversion ##########
-    print("++++++++++++++++++++++++++++++++++++++++++++++++++")
-    print("Converting to pywmi problems\n")
-    approx = []
-    cvars = []
-    cbounds = []
-    for v in p.vdist:
-        if p.vdist[v][0] == 'G':
-            dist = GaussVar(*p.vdist[v][1:])
-        elif p.vdist[v][0] == 'S':
-            dist = StepVar(*p.vdist[v][1:])
-        else:
-            raise NotImplementedError()
-
-        cvar = str(v)
-        approx.append(dist.makeApproxDistWMI(numHists, histBound, cvar))
-        cvars.append(cvar)
-        cbounds.append(dist.domain(histBound))
-
-    wmisupport = z3_to_pysmt(p.model)
-    wmiweight = smt.Times(*approx)
-    bvars = []
-    cvars = list(p.vdist.keys())
-
-    print('cvars', cvars)
-    print('cbounds', cbounds)
-
-    domain = Domain.make(bvars, cvars, cbounds)
-    density = Density(domain, wmisupport, wmiweight, wmiqueries)
-
-    density_path = output + '_density.json'
-    density.to_file(density_path)
-
-
-    print("++++++++++++++++++++++++++++++++++++++++++++++++++")
-    ######################################
 
     def gratiol(PrM, PrMH, PrnotMH):
         #underapproximate the numerator, P(H|M) = P(HM) / P(M)
