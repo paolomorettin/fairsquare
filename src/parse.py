@@ -456,7 +456,9 @@ class Encoder(ast.NodeVisitor):
 
         resT = Implies(zcond, And(zthen, zphiT))
         resE = Implies(Not(zcond), And(zelse, zphiE))
-        res = And(resT, resE)
+        #res = And(resT, resE)
+        res = And(resT, resE, Or(Not(And(zthen, zphiT)),
+                                 Not(And(zelse, zphiE))))
 
         #res = And(If(zcond, And(zthen, zphiT), And(zelse, zphiE)))
 
